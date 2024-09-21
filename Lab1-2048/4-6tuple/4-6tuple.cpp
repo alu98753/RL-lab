@@ -795,7 +795,7 @@ public:
 				info << "\t" << ((1 << t) & -2u) << "\t" << percentage << "%";
 				info << "\t(" << (stat[t] * coef) << "%)" << std::endl;
 
-				if (t == 8) { // t == 11 corresponds to tile value 2048
+				if (t == 11) { // t == 11 corresponds to tile value 2048
 					percentage_2048 = percentage;
 				}
 			}
