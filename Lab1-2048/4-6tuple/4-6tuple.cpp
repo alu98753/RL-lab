@@ -781,20 +781,35 @@ public:
 				stat[i] = std::count(maxtile.begin(), maxtile.end(), i);
 			}
 			float mean = float(sum) / unit;
-			float coef = 100.0 / unit;
+			float coef = 100.0f / unit;
 			info << n;
 			info << "\t" "mean = " << mean;
 			info << "\t" "max = " << max;
 			info << std::endl;
+
+			float percentage_2048 = 0.0f;
 			for (int t = 1, c = 0; c < unit; c += stat[t++]) {
 				if (stat[t] == 0) continue;
 				int accu = std::accumulate(stat + t, stat + 16, 0);
-				info << "\t" << ((1 << t) & -2u) << "\t" << (accu * coef) << "%";
+				float percentage = accu * coef;
+				info << "\t" << ((1 << t) & -2u) << "\t" << percentage << "%";
 				info << "\t(" << (stat[t] * coef) << "%)" << std::endl;
+
+				if (t == 11) { // t == 11 corresponds to tile value 2048
+					percentage_2048 = percentage;
+				}
 			}
+
+			// Check if the current percentage is higher than the previous highest and above 90%
+			if (percentage_2048 > 20.0f && percentage_2048 > highest_2048_percentage) {
+				highest_2048_percentage = percentage_2048;
+				save("weights.bin"); // Save the weights
+				info << "Weights saved at iteration " << n << " with 2048 tile percentage: " << highest_2048_percentage << "%" << std::endl;
+			}
+
 			if (score_file.is_open()) {
-                score_file << n << " " << mean << "\n";
-            }
+				score_file << n << " " << mean << "\n";
+			}
 			scores.clear();
 			maxtile.clear();
 		}
@@ -856,6 +871,7 @@ private:
 	std::vector<int> scores;
 	std::vector<int> maxtile;
 	std::ofstream score_file; // 新增的成員變數，用於輸出分數
+	float highest_2048_percentage = 0.0f; // record new height 2048 percentage
 
 };
 
@@ -865,7 +881,7 @@ int main(int argc, const char* argv[]) {
 
 	// set the learning parameters
 	float alpha = 0.1;
-	size_t total = 1000;
+	size_t total = 3000;
 	unsigned seed;
 	__asm__ __volatile__ ("rdtsc" : "=a" (seed));
 	info << "alpha = " << alpha << std::endl;
@@ -915,7 +931,7 @@ int main(int argc, const char* argv[]) {
 	}
 
 	// store the model into file
-	tdl.save("weights.bin");
+	// tdl.save("weights.bin");
 
 	return 0;
 }
