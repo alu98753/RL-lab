@@ -801,7 +801,7 @@ public:
 			}
 
 			// Check if the current percentage is higher than the previous highest and above 90%
-			if (percentage_2048 > 1.0f && percentage_2048 > highest_2048_percentage) {
+			if (percentage_2048 > 90.0f && percentage_2048 > highest_2048_percentage) {
 				highest_2048_percentage = percentage_2048;
 				save("weights.bin"); // Save the weights
 				info << "Weights saved at iteration " << n << " with 2048 tile percentage: " << highest_2048_percentage << "%" << std::endl;
