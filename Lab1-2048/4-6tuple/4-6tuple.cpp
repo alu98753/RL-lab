@@ -897,7 +897,7 @@ int main(int argc, const char* argv[]) {
 
 	// restore the model from file
 	// tdl.load("weights.bin");
-
+    
 	// train the model
 	std::vector<state> path;
 	path.reserve(20000);
