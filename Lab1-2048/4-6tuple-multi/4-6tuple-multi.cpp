@@ -913,10 +913,17 @@ bool is_splitting_time(int next_stage, const board& b) {
 }
 
 void train_stage(int stage, learning* tdl, const std::vector<board>& starting_boards, int total_games, std::vector<board>& collected_boards) {
-	int max_collected_boards = 1000; // 可以根據需求調整
-	float alpha = 0.1; // 這個值可以根據需要調整
+    int max_collected_boards = 1000;  // 可以根據需求調整
+    float alpha = 0.1;  // 這個值可以根據需要調整
 
-	for (size_t n = 1; n <= total_games; n++) {
+    if (starting_boards.size() == 0) {
+        error << "Starting boards are empty for stage " << stage << std::endl;
+        return;
+    }
+    std::vector<board> collected_boards_stage;
+    collected_boards_stage.reserve(max_collected_boards);  // 預留足夠的空間來收集遊戲板
+
+    for (size_t n = 1; n <= total_games; n++) {
         // 選擇起始遊戲板
         board b = starting_boards[n % starting_boards.size()];
         int score = 0;
@@ -957,7 +964,7 @@ int main(int argc, const char* argv[]) {
 
     // 定義多階段學習模型
     std::vector<learning*> tdl_stages;
-    std::vector<std::vector<board>> collected_boards(num_stages);
+    std::vector<std::vector<board>> collected_boards(num_stages);  // 用來收集每階段的 boards
     std::vector<board> starting_boards_stage0;
 
     // 初始化第一階段的起始遊戲板
@@ -977,10 +984,15 @@ int main(int argc, const char* argv[]) {
         if (stage == 0) {
             starting_boards = starting_boards_stage0;
         } else {
-            starting_boards = collected_boards[stage - 1];
+            if (collected_boards[stage - 1].empty()) {
+                // 如果前一階段沒有收集到足夠的遊戲板，則警告或處理
+                error << "Stage " << stage << " has no collected boards from previous stage!" << std::endl;
+                return 1;  // 或者選擇其他方式處理
+            }
+            starting_boards = collected_boards[stage - 1];  // 從前一階段收集的板開始
         }
 
-        // 空的遊戲板列表，用於收集
+        // 用於收集當前階段的遊戲板，供下一階段使用
         std::vector<board> collected_boards_stage;
 
         // 訓練當前階段
@@ -989,6 +1001,12 @@ int main(int argc, const char* argv[]) {
         // 保存該階段的學習模型
         tdl_stages.push_back(tdl);
         collected_boards[stage] = collected_boards_stage;
+
+        // 確認是否有足夠的 board 被收集到下一階段
+        if (collected_boards_stage.empty()) {
+            error << "No boards collected for the next stage!" << std::endl;
+            break;  // 或者適當處理
+        }
     }
 
     // 儲存每個階段的權重
