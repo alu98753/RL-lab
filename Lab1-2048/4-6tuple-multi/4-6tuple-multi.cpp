@@ -875,63 +875,126 @@ private:
 
 };
 
+
+//Step 2 定義階段劃分和檢查函數
+int get_stage(const board& b) {
+    int max_tile = 0;
+    int num_8192 = 0;
+    int num_16384 = 0;
+    for (int i = 0; i < 16; i++) {
+        int tile = b.at(i);
+        if (tile > max_tile) max_tile = tile;
+        if (tile == 13) num_8192++;
+        if (tile == 14) num_16384++;
+    }
+    if (max_tile < 14) {
+        return 0; // 階段 0
+    } else if (num_16384 >= 1 && num_8192 == 0) {
+        return 1; // 階段 1
+    } else {
+        return 2; // 階段 2
+    }
+}
+
+//Step 4:定義多階段的訓練函數
+bool is_splitting_time(int next_stage, const board& b) {
+    int max_tile = 0;
+    for (int i = 0; i < 16; i++) {
+        int tile = b.at(i);
+        if (tile > max_tile) max_tile = tile;
+    }
+    // 假設階段 1 在達到 8192 瓦片時進行劃分，階段 2 在達到 16384 瓦片時劃分
+    if (next_stage == 1 && max_tile >= 13) { // 8192 瓦片
+        return true;
+    } else if (next_stage == 2 && max_tile >= 14) { // 16384 瓦片
+        return true;
+    }
+    return false;
+}
+
+void train_stage(int stage, learning* tdl, const std::vector<board>& starting_boards, int total_games, std::vector<board>& collected_boards) {
+	int max_collected_boards = 1000; // 可以根據需求調整
+	float alpha = 0.1; // 這個值可以根據需要調整
+
+	for (size_t n = 1; n <= total_games; n++) {
+        // 選擇起始遊戲板
+        board b = starting_boards[n % starting_boards.size()];
+        int score = 0;
+        std::vector<state> path;
+        path.reserve(20000);
+
+        while (true) {
+            state best = tdl->select_best_move(b);
+            path.push_back(best);
+
+            if (best.is_valid()) {
+                score += best.reward();
+                b = best.after_state();
+                b.popup();
+
+                // 檢查是否需要收集遊戲板供下一階段使用
+                if (is_splitting_time(stage + 1, b)) {
+                    if (collected_boards.size() < max_collected_boards) {
+                        collected_boards.push_back(b);
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        // 更新學習模型
+        tdl->update_episode(path, alpha);
+        tdl->make_statistic(n, b, score);
+        path.clear();
+    }
+}
+
+
 int main(int argc, const char* argv[]) {
-	info << "TDL2048-Demo" << std::endl;
-	learning tdl;
+    info << "TDL2048-Demo" << std::endl;
+    int num_stages = 3; // 設定階段數
 
-	// set the learning parameters
-	float alpha = 0.1;
-	size_t total = 1000;
-	unsigned seed;
-	__asm__ __volatile__ ("rdtsc" : "=a" (seed));
-	info << "alpha = " << alpha << std::endl;
-	info << "total = " << total << std::endl;
-	info << "seed = " << seed << std::endl;
-	std::srand(seed);
+    // 定義多階段學習模型
+    std::vector<learning*> tdl_stages;
+    std::vector<std::vector<board>> collected_boards(num_stages);
+    std::vector<board> starting_boards_stage0;
 
-	// initialize the features
-	tdl.add_feature(new pattern({ 0, 1, 2, 3, 4, 5 }));
-	tdl.add_feature(new pattern({ 4, 5, 6, 7, 8, 9 }));
-	tdl.add_feature(new pattern({ 0, 1, 2, 4, 5, 6 }));
-	tdl.add_feature(new pattern({ 4, 5, 6, 8, 9, 10 }));
+    // 初始化第一階段的起始遊戲板
+    for (int i = 0; i < 100; i++) {
+        board b;
+        b.init();
+        starting_boards_stage0.push_back(b);
+    }
 
-	// restore the model from file
-	tdl.load("weights.bin");
-    
-	// train the model
-	std::vector<state> path;
-	path.reserve(20000);
-	for (size_t n = 1; n <= total; n++) {
-		board b;
-		int score = 0;
+    // 訓練每個階段
+    for (int stage = 0; stage < num_stages; stage++) {
+        learning* tdl = new learning();
+        tdl->add_feature(new pattern({ 0, 1, 2, 3, 4, 5 }));
 
-		// play an episode
-		debug << "begin episode" << std::endl;
-		b.init();
-		while (true) {
-			debug << "state" << std::endl << b;
-			state best = tdl.select_best_move(b);
-			path.push_back(best);
+        // 根據當前階段選擇起始遊戲板
+        std::vector<board> starting_boards;
+        if (stage == 0) {
+            starting_boards = starting_boards_stage0;
+        } else {
+            starting_boards = collected_boards[stage - 1];
+        }
 
-			if (best.is_valid()) {
-				debug << "best " << best;
-				score += best.reward();
-				b = best.after_state();
-				b.popup();
-			} else {
-				break;
-			}
-		}
-		debug << "end episode" << std::endl;
+        // 空的遊戲板列表，用於收集
+        std::vector<board> collected_boards_stage;
 
-		// update by TD(0)
-		tdl.update_episode(path, alpha);
-		tdl.make_statistic(n, b, score);
-		path.clear();
-	}	
+        // 訓練當前階段
+        train_stage(stage, tdl, starting_boards, 1000, collected_boards_stage);
 
-	// store the model into file
-	// tdl.save("weights.bin");
+        // 保存該階段的學習模型
+        tdl_stages.push_back(tdl);
+        collected_boards[stage] = collected_boards_stage;
+    }
 
-	return 0;
+    // 儲存每個階段的權重
+    for (int stage = 0; stage < num_stages; stage++) {
+        tdl_stages[stage]->save("weights_stage" + std::to_string(stage) + ".bin");
+    }
+
+    return 0;
 }
