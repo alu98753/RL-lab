@@ -544,8 +544,6 @@ size_t indexof(const std::vector<int>& patt, const board& b) const {
 /**
  * before state and after state wrapper
  */
-
-
 class state {
 public:
 	state(int opcode = -1)
@@ -880,7 +878,7 @@ int main(int argc, const char* argv[]) {
 	tdl.add_feature(new pattern({ 4, 5, 6, 8, 9, 10 }));
 
 	// restore the model from file
-	tdl.load("weights.bin");
+	// tdl.load("weights.bin");
 
 	// train the model
 	std::vector<state> path;
@@ -915,7 +913,7 @@ int main(int argc, const char* argv[]) {
 	}
 
 	// store the model into file
-	// tdl.save("weights.bin");
+	tdl.save("weights.bin");
 
 	return 0;
 }
