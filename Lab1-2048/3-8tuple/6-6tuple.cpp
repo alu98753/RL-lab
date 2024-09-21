@@ -881,7 +881,7 @@ int main(int argc, const char* argv[]) {
 
 	// set the learning parameters
 	float alpha = 0.1;
-	size_t total = 150000;
+	size_t total = 300000;
 	unsigned seed;
 	__asm__ __volatile__ ("rdtsc" : "=a" (seed));
 	info << "alpha = " << alpha << std::endl;
@@ -890,13 +890,14 @@ int main(int argc, const char* argv[]) {
 	std::srand(seed);
 
 	// initialize the features
-	tdl.add_feature(new pattern({ 0, 1, 2, 3, 4, 5, 6, 7 }));
-	tdl.add_feature(new pattern({ 4, 5, 6, 7, 8, 9, 10, 11 }));
-	tdl.add_feature(new pattern({ 8, 9, 10, 11, 12, 13, 14, 15 }));
-	tdl.add_feature(new pattern({ 0, 1, 2, 3, 12, 13, 14, 15 }));
-	tdl.add_feature(new pattern({ 0, 3, 12, 15 }));
-	tdl.add_feature(new pattern({ 1, 2, 4, 7, 8, 11 }));
-	tdl.add_feature(new pattern({ 0, 5, 10, 15, 3, 6, 9, 12 }));//斜線
+	tdl.add_feature(new pattern({ 0, 1, 2, 3, 4, 5 }));
+	tdl.add_feature(new pattern({ 4, 5, 6, 7, 8, 9 }));
+	tdl.add_feature(new pattern({ 0, 1, 2, 4, 5, 6 }));
+	tdl.add_feature(new pattern({ 4, 5, 6, 8, 9, 10 }));
+	tdl.add_feature(new pattern({ 0, 3, 12, 15, 5, 10 }));
+	tdl.add_feature(new pattern({ 0, 3, 12, 15, 6, 9 }));
+	tdl.add_feature(new pattern({ 5, 6, 9, 10 }));
+	
 
 
 
