@@ -899,7 +899,7 @@ int main(int argc, const char* argv[]) {
 	tdl.add_feature(new pattern({ 5, 6, 9, 10 }));
 	
 	// restore the model from file
-	tdl.load("300k.bin");
+	tdl.load("/kaggle/input/train-6-6tuple/300k.bin");
     
 	// train the model
 	std::vector<state> path;
