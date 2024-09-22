@@ -881,7 +881,7 @@ int main(int argc, const char* argv[]) {
 
 	// set the learning parameters
 	float alpha = 0.1;
-	size_t total = 10000000;
+	size_t total = 300000;
 	unsigned seed;
 	__asm__ __volatile__ ("rdtsc" : "=a" (seed));
 	info << "alpha = " << alpha << std::endl;
@@ -898,11 +898,8 @@ int main(int argc, const char* argv[]) {
 	tdl.add_feature(new pattern({ 0, 3, 12, 15, 6, 9 }));
 	tdl.add_feature(new pattern({ 5, 6, 9, 10 }));
 	
-
-
-
 	// restore the model from file
-	// tdl.load("weights.bin");
+	tdl.load("300k.bin");
     
 	// train the model
 	std::vector<state> path;
@@ -927,7 +924,7 @@ int main(int argc, const char* argv[]) {
 			} else {
 				break;
 			}
-		}
+		} 
 		debug << "end episode" << std::endl;
 
 		// update by TD(0)
