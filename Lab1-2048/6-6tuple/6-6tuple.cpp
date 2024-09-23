@@ -881,7 +881,7 @@ int main(int argc, const char* argv[]) {
 
 	// set the learning parameters
 	float alpha = 0.1;
-	size_t total = 180000;
+	size_t total = 150000;
 	unsigned seed;
 	__asm__ __volatile__ ("rdtsc" : "=a" (seed));
 	info << "alpha = " << alpha << std::endl;
@@ -899,7 +899,7 @@ int main(int argc, const char* argv[]) {
 	tdl.add_feature(new pattern({ 5, 6, 9, 10 }));
 	
 	// restore the model from file
-	tdl.load("/kaggle/input/train-6-6tuple/450k.bin");
+	tdl.load("/kaggle/input/train-6-6tuple/600k.bin");
     
 	// train the model
 	std::vector<state> path;
