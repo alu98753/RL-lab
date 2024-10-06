@@ -95,7 +95,14 @@ class DQNBaseAgent(ABC):
 			if episode_idx % self.eval_interval == 0:
 				# save model checkpoint
 				avg_score = self.evaluate()
-				self.save(os.path.join(self.writer.log_dir, f"model_{self.total_time_step}_{int(avg_score)}.pth"))
+				# 儲存最新的 checkpoint 覆蓋掉上次的
+				latest_save_path = os.path.join(self.writer.log_dir, "model_latest.pth")
+				self.save(latest_save_path)
+				print(f"Model saved to {latest_save_path}")
+				# 當次 checkpoint 取特定名稱
+				# self.save(os.path.join(self.writer.log_dir, f"model_{self.total_time_step}_{int(avg_score)}.pth"))
+
+				# Tensorborad 存檔
 				self.writer.add_scalar('Evaluate/Episode Reward', avg_score, self.total_time_step)
 
 	def evaluate(self):

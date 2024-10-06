@@ -15,7 +15,7 @@ class AtariDQNAgent(DQNBaseAgent):
 		super(AtariDQNAgent, self).__init__(config)
 		### TODO ###
 		# initialize env
-		# self.env = ???
+		# laself.env = ???
 		self.env = gym.make(config["env_id"], render_mode="rgb_array")
 		self.env = atari_preprocessing.AtariPreprocessing(self.env, screen_size=84, grayscale_obs=True, frame_skip=1)
 		self.env = FrameStack(self.env, 4)

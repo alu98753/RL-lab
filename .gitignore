@@ -1,3 +1,12 @@
-/.bin
-/*.json
-/*.exe
+*.bin
+*.json
+*.exe
+*.pth
+*.txt
+event*
+et*
+
+# 忽略所有 .pth 檔案
+
+# 排除指定路徑下的 model_latest.pth
+!Lab2-DQN/log/DQN_test/model_latest.pth
