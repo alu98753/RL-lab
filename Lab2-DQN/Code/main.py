@@ -1,4 +1,5 @@
 from dqn_agent_atari import AtariDQNAgent
+
 import os
 
 if __name__ == '__main__':
@@ -33,5 +34,6 @@ if __name__ == '__main__':
     if os.path.exists(checkpoint_path):
         agent.load(checkpoint_path)
         print("Model checkpoint loaded successfully.")
-            
+    else :
+        print("No model checkpoint ")
     agent.train()
