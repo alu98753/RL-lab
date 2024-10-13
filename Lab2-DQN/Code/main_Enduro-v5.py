@@ -6,7 +6,7 @@ if __name__ == '__main__':
     # my hyperparameters, you can change it as you like
     config = {
         "gpu": True,
-        "training_steps": 1e6,
+        "training_steps": 1e7,
         "gamma": 0.99,
         "batch_size": 32,
         "eps_min": 0.1,
