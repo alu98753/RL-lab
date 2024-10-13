@@ -100,7 +100,7 @@ class DQNBaseAgent(ABC):
 				self.save(latest_save_path)
 				print(f"Model saved to {latest_save_path}")
 				# 當次 checkpoint 取特定名稱
-				# self.save(os.path.join(self.writer.log_dir, f"model_{self.total_time_step}_{int(avg_score)}.pth"))
+				self.save(os.path.join(self.writer.log_dir, f"model_{self.total_time_step}_{int(avg_score)}.pth"))
 
 				# Tensorborad 存檔
 				self.writer.add_scalar('Evaluate/Episode Reward', avg_score, self.total_time_step)

@@ -1,4 +1,4 @@
-from ddqn_agent_atari import AtariDQNAgent
+from dueldqn_agent_atari import AtariDQNAgent
 
 import os
 
@@ -15,7 +15,7 @@ if __name__ == '__main__':
         "eps_decay": 1000000,
         "eval_epsilon": 0.01,
         "replay_buffer_capacity": 100000,
-        "logdir": 'Lab2-DQN/log/DDQN_6plus10e6_2/',
+        "logdir": 'Lab2-DQN/log/duelDQN_6plus10e6_2/',
         "update_freq": 4,
         "update_target_freq": 10000,
         "learning_rate": 0.0000625,
