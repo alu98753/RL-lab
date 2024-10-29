@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from base_agent import DQNBaseAgent
-from models.atari_model import AtariNetDQN
+from models.atari_model import DuelDQN
 import gym
 import random
 
@@ -28,14 +28,22 @@ class AtariDQNAgent(DQNBaseAgent):
 		self.test_env = FrameStack(self.test_env, 4)
 
 		# initialize behavior network and target network
-		self.behavior_net = AtariNetDQN(self.env.action_space.n)
+		self.behavior_net = DuelDQN(self.env.action_space.n)
 		self.behavior_net.to(self.device)
-		self.target_net = AtariNetDQN(self.env.action_space.n)
+		self.target_net = DuelDQN(self.env.action_space.n)
 		self.target_net.to(self.device)
 		self.target_net.load_state_dict(self.behavior_net.state_dict())
 		# initialize optimizer
 		self.lr = config["learning_rate"]
 		self.optim = torch.optim.Adam(self.behavior_net.parameters(), lr=self.lr, eps=1.5e-4)
+
+		# seed
+		seed = config["seed"]
+		self.env.seed(seed)
+		self.env.action_space.seed(seed)
+		self.test_env.seed(seed)
+		self.test_env.action_space.seed(seed)
+
 	
 	# Override below two function from base_agent.py , dot't change base_agent.py # 
 	def decide_agent_actions(self, observation, epsilon=0.0, action_space=None):
@@ -96,7 +104,7 @@ class AtariDQNAgent(DQNBaseAgent):
 		criterion = nn.MSELoss()
 		loss = criterion(q_value, q_target)
 		# 5. update behavior net	
-		self.writer.add_scalar('DQN/Loss', loss.item(), self.total_time_step)
+		self.writer.add_scalar('DUELDQN/Loss', loss.item(), self.total_time_step)
 
 		self.optim.zero_grad()
 		loss.backward()

@@ -92,15 +92,15 @@ class AtariDQNAgent(DQNBaseAgent):
 		# 3. calculate Q_target = r + gamma * max_a Q(s',a)
 		with torch.no_grad():
 			############### ver1 #############################
-			# # calculate q_next of behavior nn,
-			# q_next_behavior = self.behavior_net(next_state)
-			# # find argmax action of brhavior nn
+			# calculate q_next of behavior nn,
+			q_next_behavior = self.behavior_net(next_state)
+			# find argmax action of brhavior nn
 			# q_next_behavior:形狀為 [batch_size, num_actions] 的tensor， batch_size 狀態數量。 num_actions 每個狀態下可選擇的動作數量
-			# argmax_action_behavior = q_next_behavior.argmax(dim=1).unsqueeze(1)  # 在每個狀態下選擇Q值最大的動作，並增加一個維度來將形狀從 [batch_size] 變為 [batch_size, 1]
-			# # print(argmax_action_behavior)
+			argmax_action_behavior = q_next_behavior.argmax(dim=1).unsqueeze(1)  # 在每個狀態下選擇Q值最大的動作，並增加一個維度來將形狀從 [batch_size] 變為 [batch_size, 1]
+			# print(argmax_action_behavior)
 
-			# # use argmax_action_behavior on target net to get q_next
-			# q_next = self.target_net(next_state).gather(1,argmax_action_behavior )
+			# use argmax_action_behavior on target net to get q_next
+			q_next = self.target_net(next_state).gather(1,argmax_action_behavior )
    
    
 			############### ver2 ###################

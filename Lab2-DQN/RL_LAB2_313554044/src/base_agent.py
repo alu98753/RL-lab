@@ -7,7 +7,9 @@ from collections import deque
 from torch.utils.tensorboard import SummaryWriter
 from replay_buffer.replay_buffer import ReplayMemory
 from abc import ABC, abstractmethod
-
+import gymnasium as gym
+from gymnasium.wrappers import RecordVideo
+import os
 
 class DQNBaseAgent(ABC):
 	def __init__(self, config):
@@ -27,8 +29,15 @@ class DQNBaseAgent(ABC):
 		self.update_freq = config["update_freq"]
 		self.update_target_freq = config["update_target_freq"]
 	
+        # 創建日誌目錄
+		logdir = config["logdir"]
+		# 檢查路徑是否已存在且為目錄，若不是則強制創建
+		if not os.path.exists(logdir):
+			os.makedirs(logdir)
+		elif not os.path.isdir(logdir):
+			raise NotADirectoryError(f"The logdir '{logdir}' exists but is not a directory. Please remove it or provide a valid directory path.")
 		self.replay_buffer = ReplayMemory(int(config["replay_buffer_capacity"]))
-		self.writer = SummaryWriter(config["logdir"])
+		self.writer = SummaryWriter(logdir)
 
 	@abstractmethod
 	def decide_agent_actions(self, observation, epsilon=0.0, action_space=None):
@@ -108,6 +117,16 @@ class DQNBaseAgent(ABC):
 	def evaluate(self):
 		print("==============================================")
 		print("Evaluating...")
+  
+  
+		# 設置視頻保存路徑
+		video_dir = os.path.join(self.writer.log_dir, "evaluation_videos" + time.strftime("%Y%m%d-%H%M%S"))
+		if not os.path.exists(video_dir):
+			os.makedirs(video_dir)
+
+		# 包裝環境以錄製視頻
+		self.test_env = RecordVideo(self.test_env, video_dir, disable_logger=True)
+  
 		all_rewards = []
 		for i in range(self.eval_episode):
 			observation, info = self.test_env.reset()
@@ -128,6 +147,8 @@ class DQNBaseAgent(ABC):
 		avg = sum(all_rewards) / self.eval_episode
 		print(f"average score: {avg}")
 		print("==============================================")
+		self.test_env.close()  # 關閉環境，結束錄製
+
 		return avg
 	
 	# save model
