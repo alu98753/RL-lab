@@ -6,7 +6,7 @@ if __name__ == '__main__':
     # my hyperparameters, you can change it as you like
     config = {
         "gpu": True,
-        "training_steps": 1e6*6,
+        "training_steps": 1e8,
         "gamma": 0.99,
         "batch_size": 32,
         "eps_min": 0.1,
@@ -15,7 +15,7 @@ if __name__ == '__main__':
         "eps_decay": 1000000,
         "eval_epsilon": 0.01,
         "replay_buffer_capacity": 100000,
-        "logdir": 'Lab2-DQN/log/DDQN_6plus10e6_2/',
+        "logdir": 'Lab2-DQN/log/DDQN_1e8/',
         "update_freq": 4,
         "update_target_freq": 10000,
         "learning_rate": 0.0000625,
