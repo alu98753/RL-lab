@@ -1,13 +1,15 @@
-from ppo_agent_atari import AtariPPOAgent
+from RND_ppo import PPOWithRND
+
 import os
 import torch
 import random
 import numpy as np
+
 if __name__ == '__main__':
 
 	config = {
 		"gpu": True,
-		"training_steps": 1e8,
+		"training_steps": 1e9,
 		"update_sample_count": 10000,
 		# "update_sample_count": 100, #test
 		"discount_factor_gamma": 0.99,
@@ -16,45 +18,51 @@ if __name__ == '__main__':
 		"max_gradient_norm": 0.5,
 		"batch_size": 256,
 		"update_ppo_epoch": 3,
-		"learning_rate": 15e-5,
+		"learning_rate": 2e-4,# RND_v2
+		# "learning_rate": 5e-5,# RND
 		"value_coefficient": 0.5,
 		"entropy_coefficient": 0.015,
-		"horizon": 1024,
+		"horizon": 256,  # RND_v2
+		# "horizon": 1024,  # RND
+		
 		"env_id": 'Enduro-v5',
 		"render_fps": 30,
 		# "eval_interval": int(1e5),
 		"eval_interval": 1000,    # test
 		"eval_episode": 3,
-		"num_envs":64,
+		# "num_envs":64,  # RND
+
+		"num_envs":8,  # RND_v2
   
 		### remember change dir
-		"logdir": 'log/Enduro_v1_1e9/',
-        
-        "seed": 44  # 新增 seed
+		"logdir": 'log/RND_2/',
+  
+		# RND 超参数
+		# "rnd_learning_rate": 5e-5,  # RND
+  		"rnd_learning_rate": 1e-5,  # RND_v2
 
-	}
- 
+		"intrinsic_coefficient": 0.1,  # 增大内在奖励系数
+		"rnd_update_epochs": 2,              # 初始值
+	} 
  
 	# 設定固定的隨機種子
-	seed = 44
-	random.seed(seed)
-	np.random.seed(seed)
-	torch.manual_seed(seed)
-	torch.cuda.manual_seed(seed)
-	torch.backends.cudnn.deterministic = True
-	torch.backends.cudnn.benchmark = False
- 
-	agent = AtariPPOAgent(config)
- 
+	# seed = 42
+	# random.seed(seed)
+	# np.random.seed(seed)
+	# torch.manual_seed(seed)
+	# torch.cuda.manual_seed(seed)
+	# torch.backends.cudnn.deterministic = True
+	# torch.backends.cudnn.benchmark = False
+
+	agent = PPOWithRND(config)
+
     # 加载模型
-	load_path = "/mnt/md0/chen-wei/zi/RL-lab/Lab3-PPO/Code/log/Enduro_v1_1e9/model_561000000_2356.pth"
+	load_path = "/mnt/md0/chen-wei/zi/RL-lab/Lab3-PPO/Code/log/Enduro_v1_1e9/model_588000000_2347.pth"
 	agent.load(load_path)
 	print(f"Loaded model from {load_path}")
- 
-	
-	agent.evaluate()
 
-    # 继续训练
+		
+	agent.evaluate()
 	# agent.train()
 
 

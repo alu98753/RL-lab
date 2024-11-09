@@ -11,9 +11,34 @@ from abc import ABC, abstractmethod
 from gym.wrappers import RecordVideo
 from moviepy.editor import ImageSequenceClip
 import os
-import random
+class RunningMeanStd:
+    def __init__(self, epsilon=1e-4, shape=()):
+        self.mean = np.zeros(shape, 'float64')
+        self.var = np.ones(shape, 'float64')
+        self.count = epsilon
 
-class PPOBaseAgent(ABC):
+    def update(self, x):
+        x = np.asarray(x)
+        batch_mean = np.mean(x, axis=0)
+        batch_var = np.var(x, axis=0)
+        batch_count = x.shape[0]
+        self.update_from_moments(batch_mean, batch_var, batch_count)
+
+    def update_from_moments(self, batch_mean, batch_var, batch_count):
+        delta = batch_mean - self.mean
+        total_count = self.count + batch_count
+
+        new_mean = self.mean + delta * batch_count / total_count
+        m_a = self.var * self.count
+        m_b = batch_var * batch_count
+        M2 = m_a + m_b + delta ** 2 * self.count * batch_count / total_count
+        new_var = M2 / total_count
+
+        self.mean = new_mean
+        self.var = new_var
+        self.count = total_count
+        
+class RND_PPO(ABC):
 	def __init__(self, config):
 		self.gpu = config["gpu"]
 		self.device = torch.device("cuda" if self.gpu and torch.cuda.is_available() else "cpu")
@@ -30,7 +55,7 @@ class PPOBaseAgent(ABC):
 		self.eval_interval = config["eval_interval"]
 		self.eval_episode = config["eval_episode"]
 		self.num_envs = config["num_envs"]  # 設置 self.num_envs
-		self.config = config
+
 
 		self.gae_replay_buffer = GaeSampleMemory({
 			"horizon" : config["horizon"],
@@ -62,12 +87,17 @@ class PPOBaseAgent(ABC):
 		episode_lens = np.zeros(self.num_envs)
 		start_time = time.time()
 		save_count=0
+		# 初始化运行平均和标准差
 
 		while self.total_time_step <= self.training_steps:
 			# decide actions & do action
 			actions,logp_pis, values  = self.decide_agent_actions(observations)
 			next_observations, rewards, terminates, truncates, infos = self.env.step(actions)
-			
+   
+			# 计算内在奖励并存储
+			intrinsic_rewards = self.compute_intrinsic_reward(observations)
+			total_rewards  = rewards + self.intrinsic_coefficient * intrinsic_rewards
+
    			# 將轉移存入 replay buffer
 			for i in range(self.num_envs):
 				obs = {}
@@ -75,8 +105,10 @@ class PPOBaseAgent(ABC):
 				self.gae_replay_buffer.append(i, {
 					"observation": obs,       # shape = (4,84,84)
 					"action": actions[i],     # shape = (1,)
-					"reward": rewards[i],     # shape = ()
-					"value": values[i],       # shape = ()
+					"reward": total_rewards[i],       # shape = ()
+					"extrinsic_reward": rewards[i],   # 外在奖励
+					"intrinsic_reward": intrinsic_rewards[i],  # 内在奖励
+     				"value": values[i],       # shape = ()
 					"logp_pi": logp_pis[i],   # shape = ()
 					"done": terminates[i],    # shape = ()
 				})
@@ -99,6 +131,9 @@ class PPOBaseAgent(ABC):
 					print(f"[{len(self.gae_replay_buffer)}/{self.update_sample_count}][{self.total_time_step}/{self.training_steps}] episode reward: {episode_rewards[i]}  episode len: {episode_lens[i]}")
 					episode_rewards[i] = 0
 					episode_lens[i] = 0
+					self.writer.add_scalar('Train/Intrinsic Reward', intrinsic_rewards.mean(), self.total_time_step)
+					self.writer.add_scalar('Train/Extrinsic Reward', rewards.mean(), self.total_time_step)
+
      
 			# 7 環境更新、訓練步驟計數
 			observations = next_observations
@@ -122,17 +157,11 @@ class PPOBaseAgent(ABC):
 	def evaluate(self):
 		print("==============================================")
 		print("Evaluating...")
-		# 设置随机种子
-		random.seed(self.config["seed"])
-		np.random.seed(self.config["seed"])
-		torch.manual_seed(self.config["seed"])
-		torch.cuda.manual_seed(self.config["seed"])
-		torch.backends.cudnn.deterministic = True
-		torch.backends.cudnn.benchmark = False 
+  
 		# 設置影片保存路徑
-		video_folder  = os.path.join(self.writer.log_dir, "./Lab3-PPO/Code/evaluation_videos" + time.strftime("%Y%m%d-%H%M%S"))
-		if not os.path.exists(video_folder ):
-			os.makedirs(video_folder )
+		# video_folder  = os.path.join(self.writer.log_dir, "./Lab3-PPO/Code/evaluation_videos" + time.strftime("%Y%m%d-%H%M%S"))
+		# if not os.path.exists(video_folder ):
+		# 	os.makedirs(video_folder )
    
 		# 包裝環境以錄製視頻
 		frames = []  # 用於存儲所有幀
@@ -142,9 +171,9 @@ class PPOBaseAgent(ABC):
 			total_reward = 0
 			while True:
 				# 渲染當前幀並將其添加到幀列表中
-				frame = self.test_env.render()
-				if frame is not None:
-					frames.append(frame)
+				# frame = self.test_env.render()
+				# if frame is not None:
+				# 	frames.append(frame)
      
 				action, _, _, = self.decide_agent_actions(observation, eval=True)
 				next_observation, reward, terminate, truncate, info = self.test_env.step(action[0])
@@ -160,13 +189,11 @@ class PPOBaseAgent(ABC):
 		print(f"average score: {avg}")
 		print("==============================================")
   
-		# 使用 MoviePy 生成視頻
-		if frames:
-			video_path = os.path.join(os.getcwd(),video_folder, "evaluation_output.mp4")
-			clip = ImageSequenceClip(frames, fps=30)  # FPS 可以根據您的需要進行調整
-			clip.write_videofile(video_path, codec='libx264')
-		self.test_env.close()  # 關閉環境，結束錄製
-
+		# # 使用 MoviePy 生成視頻
+		# if frames:
+		# 	video_path = os.path.join(os.getcwd(),video_folder, "evaluation_output.mp4")
+		# 	clip = ImageSequenceClip(frames, fps=30)  # FPS 可以根據您的需要進行調整
+		# 	clip.write_videofile(video_path, codec='libx264')
 		return avg
 		
 	# save model

@@ -6,48 +6,36 @@ import time
 from collections import deque
 from torch.utils.tensorboard import SummaryWriter
 from replay_buffer.gae_replay_buffer import GaeSampleMemory
-from base_agent import PPOBaseAgent
+from v3_base_agent import v3_PPOBaseAgent
 from models.atari_model import AtariNet
 import gym
-from gym.vector import SyncVectorEnv
-
 from gym.wrappers import atari_preprocessing
 from gym.wrappers import FrameStack
 import warnings
-
 os.environ["SDL_VIDEODRIVER"] = "dummy"
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 
 # 忽略特定的 DeprecationWarning
 warnings.filterwarnings("ignore", category=DeprecationWarning, message="`np.bool8` is a deprecated alias for `np.bool_`")
-class AtariPPOAgent(PPOBaseAgent):
+class v3_AtariPPOAgent(v3_PPOBaseAgent):
 	def __init__(self, config):
-		super(AtariPPOAgent, self).__init__(config)
+		super(v3_AtariPPOAgent, self).__init__(config)
+
 		### TODO ###
 		# initialize env
-		seed = 44
-
-		def make_env(render_mode="rgb_array", noop_max=30, max_episode_steps=10000, seed=None):
-			def _init():
-				env = gym.make(f'ALE/{config["env_id"]}', render_mode=render_mode)
-				env.seed(seed)
-				env = atari_preprocessing.AtariPreprocessing(env, frame_skip=1, noop_max=noop_max)
-				env = FrameStack(env, 4)
-    
-				env.metadata['render_fps'] = self.config["render_fps"]
-				return env
-			return _init
-
-		
-		seeds = [seed + i for i in range(self.num_envs)]
+		def make_env(render_mode="rgb_array", noop_max=30):
+			env = gym.make(f'ALE/{config["env_id"]}', render_mode=render_mode)
+			env = atari_preprocessing.AtariPreprocessing(env, frame_skip=1, noop_max=noop_max)
+			env = FrameStack(env, 4)
+			return env
 		self.env = gym.vector.AsyncVectorEnv([
-			make_env(seed=s) for s in seeds
+			lambda: make_env() for _ in range(self.num_envs)
 		])
-
 
 
 		### TODO ###
 		# initialize test_env
-		self.test_env = make_env(render_mode="rgb_array", noop_max=0, seed=seed)()
+		self.test_env = make_env("rgb_array", noop_max=0)
 
 		initial_observation, _ = self.env.reset()
 		print(f"Initial observation shape: {initial_observation.shape}")
@@ -61,8 +49,36 @@ class AtariPPOAgent(PPOBaseAgent):
 		self.net.to(self.device)
 		self.lr = config["learning_rate"]
 		self.update_count = config["update_ppo_epoch"]
-		self.optim = torch.optim.Adam(self.net.parameters(), lr=self.lr , eps=1e-5)
+		# self.optim = torch.optim.Adam(self.net.parameters(), lr=self.lr , eps=1e-5)
   
+  
+		# 初始化優化器
+		self.optim = torch.optim.AdamW(
+			self.net.parameters(), 
+			lr=config["learning_rate"], 
+			betas=(0.9, 0.999)
+		)
+
+		# 初始化學習率調度器
+		self.scheduler = ReduceLROnPlateau(
+			self.optim,
+			mode='max',  # 假設您希望最大化獎勵
+			factor=0.5,  # 每次調整學習率的倍率
+			patience=10,  # 在指標未提升時等待的 epoch 數
+			verbose=True
+		)
+
+		# 初始化熵係數參數
+		self.initial_entropy_coef = config["entropy_coefficient"]
+		self.final_entropy_coef = config.get("final_entropy_coefficient", 0.0)
+		self.entropy_decay_steps = config.get("entropy_decay_steps",  config["entropy_decay_steps"])
+		self.current_entropy_coef = self.initial_entropy_coef
+
+		# 初始化熵係數優化器
+		self.entropy_coef_target = config.get("entropy_coef_target", 0.01)
+		self.entropy_coef_lr = config.get("entropy_coef_lr", 1e-3)
+		self.entropy_coef = nn.Parameter(torch.tensor(self.initial_entropy_coef))
+		self.optim_entropy = torch.optim.Adam([self.entropy_coef], lr=self.entropy_coef_lr)
   
 	### TODO ###
 	def decide_agent_actions(self, observation, eval=False):
@@ -160,19 +176,30 @@ class AtariPPOAgent(PPOBaseAgent):
 				# calculate value loss
 				value_criterion = nn.MSELoss()
 				v_loss = value_criterion(value, return_train_batch)
+				# print(f"Value loss shape: {v_loss.shape}")  # 應該是 torch.Size([])
+				# print(f"Entropy shape: {entropy.shape}")  # 應該是 torch.Size([])
 
 				# 計算熵的平均值 (scalar)
 				entropy = entropy.mean()
 				# print(f"Entropy shape: {entropy.shape}")  # 應該是 torch.Size([])
               
+                # 更新熵係數
+				self.current_entropy_coef = self.get_current_entropy_coef()
+      
 				# calculate total loss
-				loss = surrogate_loss + self.value_coefficient * v_loss - self.entropy_coefficient * entropy
+				loss = surrogate_loss + self.value_coefficient * v_loss - self.current_entropy_coef * entropy
 
 				# update network
 				self.optim.zero_grad()
 				loss.backward()
 				nn.utils.clip_grad_norm_(self.net.parameters(), self.max_gradient_norm)
 				self.optim.step()
+
+				# 更新學習率調度器（如果使用 ReduceLROnPlateau）
+				avg_reward = self.get_average_reward()  # 實現一個方法來計算當前的平均獎勵
+				if avg_reward is not None:
+					self.scheduler.step(avg_reward)  # 使用位置參數傳遞 avg_reward				# 更新熵係數優化器（如果使用自適應熵係數）
+				self.optim_entropy.step()
     
 				# 累積損失
 				total_surrogate_loss += surrogate_loss.item()
@@ -187,11 +214,11 @@ class AtariPPOAgent(PPOBaseAgent):
 		self.writer.add_scalar('PPO/Surrogate Loss', total_surrogate_loss / loss_counter, self.total_time_step)
 		self.writer.add_scalar('PPO/Value Loss', total_v_loss / loss_counter, self.total_time_step)
 		self.writer.add_scalar('PPO/Entropy', total_entropy / loss_counter, self.total_time_step)
-		print("Loss: {:}\tSurrogate Loss: {:}\tValue Loss: {:}\tEntropy: {:}".format(
-			total_loss / loss_counter,
-			total_surrogate_loss / loss_counter,
-			total_v_loss / loss_counter,
-			total_entropy / loss_counter
-			))
-		# 清空 replay buffer
+		# print("Loss: {:}\tSurrogate Loss: {:}\tValue Loss: {:}\tEntropy: {:}".format(
+		# 	total_loss / loss_counter,
+		# 	total_surrogate_loss / loss_counter,
+		# 	total_v_loss / loss_counter,
+		# 	total_entropy / loss_counter
+		# 	))
+		        # 清空 replay buffer
 		self.gae_replay_buffer.clear_buffer()

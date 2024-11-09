@@ -11,9 +11,8 @@ from abc import ABC, abstractmethod
 from gym.wrappers import RecordVideo
 from moviepy.editor import ImageSequenceClip
 import os
-import random
 
-class PPOBaseAgent(ABC):
+class v3_PPOBaseAgent(ABC):
 	def __init__(self, config):
 		self.gpu = config["gpu"]
 		self.device = torch.device("cuda" if self.gpu and torch.cuda.is_available() else "cpu")
@@ -26,12 +25,13 @@ class PPOBaseAgent(ABC):
 		self.max_gradient_norm = config["max_gradient_norm"]
 		self.batch_size = int(config["batch_size"])
 		self.value_coefficient = config["value_coefficient"]
-		self.entropy_coefficient = config["entropy_coefficient"]
+		# self.entropy_coefficient = config["entropy_coefficient"]
 		self.eval_interval = config["eval_interval"]
 		self.eval_episode = config["eval_episode"]
 		self.num_envs = config["num_envs"]  # 設置 self.num_envs
-		self.config = config
 
+
+        
 		self.gae_replay_buffer = GaeSampleMemory({
 			"horizon" : config["horizon"],
 			"use_return_as_advantage": False,
@@ -39,6 +39,23 @@ class PPOBaseAgent(ABC):
 			})
 
 		self.writer = SummaryWriter(config["logdir"])
+  
+	def get_current_entropy_coef(self):
+		decay_fraction = min(self.total_time_step / self.entropy_decay_steps, 1.0)
+		return self.initial_entropy_coef * (1 - decay_fraction) + self.final_entropy_coef * decay_fraction
+
+
+	def update_entropy_coef(self, entropy_mean):
+		# 計算熵差距
+		entropy_loss = (entropy_mean - self.entropy_coef_target).pow(2)
+
+		# 反向傳播並更新熵係數
+		self.optim_entropy.zero_grad()
+		entropy_loss.backward()
+		self.optim_entropy.step()
+
+		# 確保熵係數為正
+		self.entropy_coef.data.clamp_(0.0, 1.0)
     
 	@abstractmethod
 	def decide_agent_actions(self, observation):
@@ -62,6 +79,7 @@ class PPOBaseAgent(ABC):
 		episode_lens = np.zeros(self.num_envs)
 		start_time = time.time()
 		save_count=0
+		self.episode_rewards_history = []  # 初始化獎勵歷史
 
 		while self.total_time_step <= self.training_steps:
 			# decide actions & do action
@@ -93,9 +111,11 @@ class PPOBaseAgent(ABC):
 			for i in range(self.num_envs):
 				if terminates[i] or truncates[i]:
 					# 添加到獎勵歷史
-					if i == self.num_envs - 1:
-						self.writer.add_scalar('Train/Episode Reward', episode_rewards[i], self.total_time_step)
-						self.writer.add_scalar('Train/Episode Len', episode_lens[i], self.total_time_step)
+					self.episode_rewards_history.append(episode_rewards[i])
+   
+					
+					self.writer.add_scalar('Train/Episode Reward', episode_rewards[i], self.total_time_step)
+					self.writer.add_scalar('Train/Episode Len', episode_lens[i], self.total_time_step)
 					print(f"[{len(self.gae_replay_buffer)}/{self.update_sample_count}][{self.total_time_step}/{self.training_steps}] episode reward: {episode_rewards[i]}  episode len: {episode_lens[i]}")
 					episode_rewards[i] = 0
 					episode_lens[i] = 0
@@ -112,8 +132,9 @@ class PPOBaseAgent(ABC):
 				latest_save_path = os.path.join(self.writer.log_dir, "model_latest.pth")
 				self.save(latest_save_path)
 				print(f"Model saved to {latest_save_path}")
-
+				print()
 				self.writer.add_scalar('Evaluate/Episode Reward', avg_score, self.total_time_step)
+
 				save_count += 1
 				if(save_count % 50 )==0:
 					self.save(os.path.join(self.writer.log_dir, f"model_{self.total_time_step}_{int(avg_score)}.pth"))
@@ -122,17 +143,11 @@ class PPOBaseAgent(ABC):
 	def evaluate(self):
 		print("==============================================")
 		print("Evaluating...")
-		# 设置随机种子
-		random.seed(self.config["seed"])
-		np.random.seed(self.config["seed"])
-		torch.manual_seed(self.config["seed"])
-		torch.cuda.manual_seed(self.config["seed"])
-		torch.backends.cudnn.deterministic = True
-		torch.backends.cudnn.benchmark = False 
+  
 		# 設置影片保存路徑
-		video_folder  = os.path.join(self.writer.log_dir, "./Lab3-PPO/Code/evaluation_videos" + time.strftime("%Y%m%d-%H%M%S"))
-		if not os.path.exists(video_folder ):
-			os.makedirs(video_folder )
+		# video_folder  = os.path.join(self.writer.log_dir, "./Lab3-PPO/Code/evaluation_videos" + time.strftime("%Y%m%d-%H%M%S"))
+		# if not os.path.exists(video_folder ):
+		# 	os.makedirs(video_folder )
    
 		# 包裝環境以錄製視頻
 		frames = []  # 用於存儲所有幀
@@ -142,9 +157,9 @@ class PPOBaseAgent(ABC):
 			total_reward = 0
 			while True:
 				# 渲染當前幀並將其添加到幀列表中
-				frame = self.test_env.render()
-				if frame is not None:
-					frames.append(frame)
+				# frame = self.test_env.render()
+				# if frame is not None:
+				# 	frames.append(frame)
      
 				action, _, _, = self.decide_agent_actions(observation, eval=True)
 				next_observation, reward, terminate, truncate, info = self.test_env.step(action[0])
@@ -160,13 +175,11 @@ class PPOBaseAgent(ABC):
 		print(f"average score: {avg}")
 		print("==============================================")
   
-		# 使用 MoviePy 生成視頻
-		if frames:
-			video_path = os.path.join(os.getcwd(),video_folder, "evaluation_output.mp4")
-			clip = ImageSequenceClip(frames, fps=30)  # FPS 可以根據您的需要進行調整
-			clip.write_videofile(video_path, codec='libx264')
-		self.test_env.close()  # 關閉環境，結束錄製
-
+		# # 使用 MoviePy 生成視頻
+		# if frames:
+		# 	video_path = os.path.join(os.getcwd(),video_folder, "evaluation_output.mp4")
+		# 	clip = ImageSequenceClip(frames, fps=30)  # FPS 可以根據您的需要進行調整
+		# 	clip.write_videofile(video_path, codec='libx264')
 		return avg
 		
 	# save model
@@ -181,3 +194,13 @@ class PPOBaseAgent(ABC):
 	def load_and_evaluate(self, load_path):
 		self.load(load_path)
 		self.evaluate()
+
+
+	def get_average_reward(self):
+		# 假設您在 train 方法中累積了所有回合的獎勵，並存儲在某個列表中
+		# 您需要根據實際實現調整此方法
+		if hasattr(self, 'episode_rewards_history') and len(self.episode_rewards_history) > 0:
+			return np.mean(self.episode_rewards_history[-100:])  # 最近 100 回合的平均獎勵
+		else:
+			return None
+

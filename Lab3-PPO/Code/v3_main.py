@@ -1,8 +1,5 @@
-from ppo_agent_atari import AtariPPOAgent
-import os
-import torch
-import random
-import numpy as np
+from v3_ppo_agent_atari import v3_AtariPPOAgent
+
 if __name__ == '__main__':
 
 	config = {
@@ -12,11 +9,12 @@ if __name__ == '__main__':
 		# "update_sample_count": 100, #test
 		"discount_factor_gamma": 0.99,
 		"discount_factor_lambda": 0.95,
-		"clip_epsilon": 0.3,
+		"clip_epsilon": 0.2,
 		"max_gradient_norm": 0.5,
 		"batch_size": 256,
+		"logdir": 'log/v3_1e8/',
 		"update_ppo_epoch": 3,
-		"learning_rate": 15e-5,
+		"learning_rate": 2e-4,
 		"value_coefficient": 0.5,
 		"entropy_coefficient": 0.015,
 		"horizon": 1024,
@@ -26,36 +24,14 @@ if __name__ == '__main__':
 		"eval_interval": 1000,    # test
 		"eval_episode": 3,
 		"num_envs":64,
-  
-		### remember change dir
-		"logdir": 'log/Enduro_v1_1e9/',
-        
-        "seed": 44  # 新增 seed
+
+		"update_count": 10,
+	    "final_entropy_coefficient": 0.0,
+		"entropy_decay_steps": 1000000,
 
 	}
- 
- 
-	# 設定固定的隨機種子
-	seed = 44
-	random.seed(seed)
-	np.random.seed(seed)
-	torch.manual_seed(seed)
-	torch.cuda.manual_seed(seed)
-	torch.backends.cudnn.deterministic = True
-	torch.backends.cudnn.benchmark = False
- 
-	agent = AtariPPOAgent(config)
- 
-    # 加载模型
-	load_path = "/mnt/md0/chen-wei/zi/RL-lab/Lab3-PPO/Code/log/Enduro_v1_1e9/model_561000000_2356.pth"
-	agent.load(load_path)
-	print(f"Loaded model from {load_path}")
- 
-	
-	agent.evaluate()
-
-    # 继续训练
-	# agent.train()
+	agent = v3_AtariPPOAgent(config)
+	agent.train()
 
 
 '''
