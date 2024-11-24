@@ -7,7 +7,6 @@ from collections import deque
 from torch.utils.tensorboard import SummaryWriter
 from replay_buffer.replay_buffer import ReplayMemory
 from abc import ABC, abstractmethod
-from gym.wrappers import RecordVideo
 from moviepy.editor import ImageSequenceClip
 import os
 import random
@@ -59,11 +58,23 @@ class TD3BaseAgent(ABC):
 		self.gamma = config["gamma"]
 		self.tau = config["tau"]
 		self.update_freq = config["update_freq"]
-		self.config = config
 	
 		self.replay_buffer = ReplayMemory(int(config["replay_buffer_capacity"]))
 		self.writer = SummaryWriter(config["logdir"])
-
+		self.config = config
+		random.seed(config["seed"])
+		np.random.seed(config["seed"])
+		torch.manual_seed(config["seed"])
+		torch.cuda.manual_seed(config["seed"])
+		torch.backends.cudnn.deterministic = True
+		torch.backends.cudnn.benchmark = False
+    
+	def seed(self, seed=None):
+		self.action_space.seed(seed)
+		self.observation_space.seed(seed)
+		random.seed(seed)
+		np.random.seed(seed)
+	
 	@abstractmethod
 	def decide_agent_actions(self, state, sigma=0.0):
 		### TODO ###
@@ -136,34 +147,31 @@ class TD3BaseAgent(ABC):
 	def evaluate(self):
 		print("==============================================")
 		print("Evaluating...")
-		# 設置隨機種子
-		random.seed(self.config["seed"])
-		np.random.seed(self.config["seed"])
-		torch.manual_seed(self.config["seed"])
-		if self.device.type == 'cuda':
-			torch.cuda.manual_seed(self.config["seed"])
-			torch.backends.cudnn.deterministic = True
-			torch.backends.cudnn.benchmark = False 
-		# 設置影片保存路徑
-		video_folder  = os.path.join(self.writer.log_dir, "Video" + time.strftime("%Y%m%d-%H%M%S"))
+		# Set the random seed for reproducibility
+		seed = self.config["seed"]
+		random.seed(seed)
+		np.random.seed(seed)
+		torch.manual_seed(seed)
+		torch.cuda.manual_seed(seed)
+		if self.gpu:
+			torch.cuda.manual_seed_all(seed)
+		# 影片保存路徑
+		video_folder  = os.path.join(self.writer.log_dir, f"{self.writer.log_dir}_Video") # + time.strftime("%Y%m%d-%H%M%S")
 		if not os.path.exists(video_folder ):
 			os.makedirs(video_folder )
    
-  
 		all_rewards = []
 		for episode in range(self.eval_episode):
-			# 為每個評估過程創建一個視頻文件夾
 			video_path = os.path.join(video_folder, f"episode_{episode + 1}.mp4")
 			frames = []  # 保存每幀畫面
 
 			total_reward = 0
-			self.test_env = gym.make("CarRacing-v2", render_mode="rgb_array")  # 指定渲染模式
-			# self.test_env = gym.wrappers.TransformObservation(self.test_env, lambda obs: np.transpose(obs, (2, 0, 1)))
+			state, infos = self.test_env.reset(seed=seed + episode*10)
+			# state, infos = self.test_env.reset()
 
-			state, infos = self.test_env.reset()
 			for t in range(10000):
        
-				# 渲染畫面並保存幀
+				# 保存渲染畫面
 				frame = self.test_env.render()
 				frames.append(frame)
     
@@ -177,7 +185,7 @@ class TD3BaseAgent(ABC):
 						.format(episode+1, t, total_reward))
 					all_rewards.append(total_reward)
 					break
-			        # 將幀保存為 MP4 文件
+			# 保存為 MP4 文件
 			clip = ImageSequenceClip(frames, fps=30)
 			clip.write_videofile(video_path, codec="libx264")	
    		

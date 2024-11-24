@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 from base_agent import TD3BaseAgent
 from models.CarRacing_model import ActorNetSimple, CriticNetSimple
-from environment_wrapper.CarRacingEnv import CarRacingEnvironment
+from environment_wrapper.CarRacingEnv_v5 import CarRacingEnvironment
 import random
 from base_agent import OUNoiseGenerator, GaussianNoise
 
@@ -40,12 +40,13 @@ class CarRacingTD3Agent(TD3BaseAgent):
 		self.critic_opt1 = torch.optim.Adam(self.critic_net1.parameters(), lr=self.lrc)
 		self.critic_opt2 = torch.optim.Adam(self.critic_net2.parameters(), lr=self.lrc)
 
-		# choose Gaussian noise or OU noise
 		self.policy_noise = 0.2
 		self.noise_clip = 0.5
-		# noise_mean = np.full(self.env.action_space.shape[0], 0.0, np.float32)
-		# noise_std = np.full(self.env.action_space.shape[0], 1.0, np.float32)
-		# self.noise = OUNoiseGenerator(noise_mean, noise_std)
+		# choose Gaussian noise or OU noise
+
+		noise_mean = np.full(self.env.action_space.shape[0], 0.0, np.float32)
+		noise_std = np.full(self.env.action_space.shape[0], 1.0, np.float32)
+		self.noise = (noise_mean, noise_std)
 
 		self.noise = GaussianNoise(self.env.action_space.shape[0], 0.0, 1.0)
 		
@@ -54,8 +55,6 @@ class CarRacingTD3Agent(TD3BaseAgent):
 		### TODO ###
 		# based on the behavior (actor) network and exploration noise
 		with torch.no_grad():
-      
-			
 			state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
 			if state.ndimension() == 4 and state.shape[-1] in [1, 3]:  # 判斷是否為 channels_last
 				state = state.permute(0, 3, 1, 2)  # 將 NHWC -> NCHW
@@ -65,12 +64,11 @@ class CarRacingTD3Agent(TD3BaseAgent):
 				batch_size, _, height, width = state.size()
 				zeros_channel = torch.zeros((batch_size, 1, height, width), device=self.device)  # 增加一個零通道
 				state = torch.cat([state, zeros_channel], dim=1)  # 將零通道拼接到輸入中
-				
-			action = self.actor_net(state, brake_rate=brake_rate).cpu().numpy().squeeze() 
-			action += sigma *  self.noise.generate()
-   
-		return action
+			action = self.actor_net(state, brake_rate=brake_rate).cpu().numpy().squeeze()
+			action += sigma * self.noise.generate()
 
+		return action
+		
 
 	def update_behavior_network(self):
 		# sample a minibatch of transitions
@@ -81,31 +79,26 @@ class CarRacingTD3Agent(TD3BaseAgent):
 		# 2. Delayed Policy Updates
 		# 3. Target Policy Smoothing Regularization
 
-		# Update Critic ##
+		## Update Critic ##
 		# critic loss
 		q_value1 = self.critic_net1(state, action)
 		q_value2 = self.critic_net2(state, action)
 		with torch.no_grad():
-			# select action a_next from target actor network and add noise for smoothing
-			a_next = self.target_actor_net(next_state)
-
-   			# 為每個操作維度添加了具有不同標準差的雜訊。
-      		# 具體來說，第一維（轉向）使用self.policy_noise，
-        	# 而第二維和第三維（加速和煞車）使用self.policy_noise / 2。
+		# 	# select action a_next from target actor network and add noise for smoothing
 			noise = torch.stack(
-			((torch.empty_like(action[:, 0]).data.normal_(0, self.policy_noise).clamp(-self.noise_clip, self.noise_clip)),
-			(torch.empty_like(action[:, 1]).data.normal_(0, self.policy_noise / 2).clamp(-self.noise_clip / 2, self.noise_clip / 2)),
-			(torch.empty_like(action[:, 2]).data.normal_(0, self.policy_noise / 2).clamp(-self.noise_clip / 2, self.noise_clip / 2))),
-			dim=1,
+				((torch.empty_like(action[:, 0]).data.normal_(0, self.policy_noise).clamp(-self.noise_clip, self.noise_clip)),
+				(torch.empty_like(action[:, 1]).data.normal_(0, self.policy_noise / 2).clamp(-self.noise_clip / 2, self.noise_clip / 2)),
+				(torch.empty_like(action[:, 2]).data.normal_(0, self.policy_noise / 2).clamp(-self.noise_clip / 2, self.noise_clip / 2))),
+				dim=1,
 			)
+			a_next = self.target_actor_net(next_state) + noise
 			a_next[:, 0] = a_next[:, 0].clamp(-1, 1)
 			a_next[:, 1] = a_next[:, 1].clamp(0, 1)
 			a_next[:, 2] = a_next[:, 2].clamp(0, 1)
-			a_next = a_next + noise
    
-			q_next1 = self.target_critic_net1(next_state,a_next)
-			q_next2 = self.target_critic_net2(next_state,a_next)
-			# select min q value from q_next1 and q_next2 (double Q learning)
+			q_next1 = self.target_critic_net1(next_state, a_next)
+			q_next2 = self.target_critic_net2(next_state, a_next)
+		# 	# select min q value from q_next1 and q_next2 (double Q learning)
 			q_target = reward + self.gamma * torch.min(q_next1, q_next2) * (1 - done)
 		
 		# critic loss function
@@ -124,14 +117,15 @@ class CarRacingTD3Agent(TD3BaseAgent):
 
 		## Delayed Actor(Policy) Updates ##
 		if self.total_time_step % self.update_freq == 0:
-			## update actor ##
-			# actor loss
-			# select action a from behavior actor network (a is different from sample transition's action)
-			# get Q from behavior critic network, mean Q value -> objective function
-			# maximize (objective function) = minimize -1 * (objective function)
+		# 	## update actor ##
+		# 	# actor loss
+		# 	# select action a from behavior actor network (a is different from sample transition's action)
+		# 	# get Q from behavior critic network, mean Q value -> objective function
+		# 	# maximize (objective function) = minimize -1 * (objective function)
 			action = self.actor_net(state)
 			actor_loss = -1 * self.critic_net1(state, action).mean()
-			# optimize actor
+		# 	# optimize actor
 			self.actor_net.zero_grad()
 			actor_loss.backward()
 			self.actor_opt.step()
+		
