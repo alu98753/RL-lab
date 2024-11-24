@@ -44,16 +44,15 @@ class CarRacingEnvironment:
 		return road_pixel_count, grass_pixel_count
 
 	def calculate_drift_angle(self, obs):
+
 		steering = self.env.car.hull.angularVelocity
-		drift_angle = abs(steering) * 30  # 簡化計算
+		drift_angle = abs(steering) * 30  
 		return drift_angle
 
 	def update_visited_tiles(self, info):
-		# 獲取當前的賽道圖塊
 		if 'tile_visited_count' in info:
 			current_tile_count = info['tile_visited_count']
 			if current_tile_count > self.prev_tile_visited_count:
-				# 新訪問圖塊
 				for i in range(self.prev_tile_visited_count, current_tile_count):
 					self.visited_tiles.add(i)
 				self.prev_tile_visited_count = current_tile_count
@@ -73,18 +72,17 @@ class CarRacingEnvironment:
 			if len(road_indices) > 0:
 				center_x = np.mean(road_indices)
 				center_positions.append(center_x)
-
 		if len(center_positions) >= 2:
 			std_dev = np.std(center_positions)
 			if std_dev < 5:
 				return True  
 			else:
-				return False  
+				return False   
 		else:
 			return False
 
 	def is_road_turning(self, obs):
-		road_ahead = obs[0:40, :, :]  
+		road_ahead = obs[0:40, :, :]  # Take the top 40 rows
 
 		road_color_lower = np.array([90, 90, 90], dtype=np.uint8)
 		road_color_upper = np.array([120, 120, 120], dtype=np.uint8)
@@ -102,7 +100,6 @@ class CarRacingEnvironment:
 				valid_rows.append(row)  
 
 		if len(center_positions) >= 2:
-			# Fit a line to the valid data and compute the slope
 			z = np.polyfit(valid_rows, center_positions, 1)
 			slope = z[0]
 			if abs(slope) > 0.5:
@@ -113,7 +110,7 @@ class CarRacingEnvironment:
 			else:
 				return None 
 		else:
-			return None  
+			return None 
 
 
 	def step(self, action):
@@ -122,14 +119,14 @@ class CarRacingEnvironment:
 		original_terminates = terminates
 		self.ep_len += 1
   
-     	# 獲取車輛位置
+     	# 獲取車輛位置資訊
 		road_pixel_count, grass_pixel_count = self.check_car_position(obs)
 		info["road_pixel_count"] = road_pixel_count
 		info["grass_pixel_count"] = grass_pixel_count
     	
      # Calculate speed and add to info
 		speed = np.linalg.norm(self.env.car.hull.linearVelocity)
-		info['speed'] = speed  # Add speed to info 		
+		info['speed'] = speed  	# 獲取車速資訊
 
 
 		# my reward shaping strategy, you can try your own
@@ -153,11 +150,10 @@ class CarRacingEnvironment:
 					if speed > 0.8:
 						reward += 0.5  # 鼓勵高速行駛
 					if abs(action[0]) < 0.1:
-						reward += 0.02 # 獎勵直線行駛
+						reward += 0.02
 					if action[2] > 0.5:
-						reward -= 0.05  # 懲罰過度剎車
+						reward -= 0.05  # 懲罰頻繁剎車
 
-				# 獎勵訪問新的賽道圖塊
 				if 'tile_visited_count' in info:
 					# if road_pixel_count < 10:
 					# 	terminates = True
@@ -165,18 +161,15 @@ class CarRacingEnvironment:
 						new_tiles = info['tile_visited_count'] - len(self.visited_tiles)
 						reward += new_tiles * (1000 / self.total_tiles) 
 
-
-				# 新增甩尾機制
 				turn_direction = self.is_road_turning(obs)
 				if turn_direction in ['left', 'right']:
 					pass
 				else:
-					# 在直道上不鼓勵甩尾
 					if abs(action[0]) > 0.5 and speed > 0.6:
-						reward -= 0.5  
+						reward -= 0.5 
 				if info.get('lap_complete'):
-					reward += 50  # 完成一圈的獎勵
-					terminates = True  # 結束回合
+					reward += 50  
+					terminates = True  
 
 		# convert to grayscale
 		obs = cv2.cvtColor(obs, cv2.COLOR_BGR2GRAY) # 96x96

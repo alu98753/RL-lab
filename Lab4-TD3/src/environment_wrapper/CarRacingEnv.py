@@ -87,7 +87,6 @@ class CarRacingEnvironment:
 		self.ep_len = 0
 		obs = cv2.cvtColor(obs, cv2.COLOR_BGR2GRAY)  # 96x96
 
-		# 帧堆叠
 		self.frames.clear()
 		for _ in range(self.frames.maxlen):
 			self.frames.append(obs)

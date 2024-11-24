@@ -1,4 +1,4 @@
-from td3_agent_CarRacing_diff_reward_v5 import CarRacingTD3Agent
+from td3_agent_CarRacing_different_reward_v5 import CarRacingTD3Agent
 
 if __name__ == '__main__':
 	# my hyperparameters, you can change it as you like
@@ -26,6 +26,6 @@ if __name__ == '__main__':
 	# agent.train()
 	# agent.evaluate()
 	agent.load_and_evaluate(
-		"/mnt/md0/chen-wei/zi/RL-lab/Lab4-TD3/Code/log/CarRacing/diff_reward_v5/model_480197_148.pth")
+		"/mnt/md0/chen-wei/zi/RL-lab/Lab4-TD3/Code/log/CarRacing/diff_reward_v5/model_439146_823.pth")
 
 # "seed": 5 859   # 		"/mnt/md0/chen-wei/zi/RL-lab/Lab4-TD3/Code/log/CarRacing/diff_reward_v5/model_439146_823.pth")

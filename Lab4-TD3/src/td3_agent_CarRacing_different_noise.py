@@ -153,7 +153,6 @@ class UniformNoiseGenerator:
     def generate(self):
         return np.random.uniform(self.low, self.high, self.size)
 
-
 class PerlinNoiseGenerator:
     def __init__(self, size, scale=0.1):
         self.size = size

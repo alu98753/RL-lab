@@ -1,4 +1,4 @@
-from td3_agent_CarRacing_diff_noise import CarRacingTD3Agent
+from td3_agent_CarRacing_no_target_policy_smoothing import CarRacingTD3Agent
 
 if __name__ == '__main__':
 	# my hyperparameters, you can change it as you like
@@ -13,18 +13,16 @@ if __name__ == '__main__':
 		"lra": 4.5e-5,
 		"lrc": 4.5e-5,
 		"replay_buffer_capacity": 5000,
+		"logdir": '/mnt/md0/chen-wei/zi/RL-lab/Lab4-TD3/Code/log/CarRacing/td3_test_without_target_policy_smoothing/',
 		"update_freq": 2,
 		"eval_interval": 10,
 		"eval_episode": 10,
-  		
-    	"noise_type": "perlin", # "OUNoise" "uniform" "perlin"  "sinusoidal"
-		"logdir": '/mnt/md0/chen-wei/zi/RL-lab/Lab4-TD3/Code/log/CarRacing/td3_test_diff_noise/perlin',
-     	"seed": 6
+  		"seed": 6
 
 	}
 	agent = CarRacingTD3Agent(config)
 	agent.train()
 
-
 	agent.load_and_evaluate(
 		"/mnt/md0/chen-wei/zi/RL-lab/Lab4-TD3/Code/log/TD3-select/model_14152661_549.pth")
+

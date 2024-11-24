@@ -155,23 +155,23 @@ class TD3BaseAgent(ABC):
 		torch.cuda.manual_seed(seed)
 		if self.gpu:
 			torch.cuda.manual_seed_all(seed)
-		# 影片保存路徑
-		video_folder  = os.path.join(self.writer.log_dir, f"{self.writer.log_dir}_Video") # + time.strftime("%Y%m%d-%H%M%S")
+		# 保存路徑
+		video_folder  = os.path.join(self.writer.log_dir, "Video"+ time.strftime("%Y%m%d-%H%M%S")) # 
 		if not os.path.exists(video_folder ):
 			os.makedirs(video_folder )
    
 		all_rewards = []
 		for episode in range(self.eval_episode):
 			video_path = os.path.join(video_folder, f"episode_{episode + 1}.mp4")
-			frames = []  # 保存每幀畫面
+			frames = [] 
 
 			total_reward = 0
-			state, infos = self.test_env.reset(seed=seed + episode*10)
+			state, infos = self.test_env.reset(seed=seed + episode)
 			# state, infos = self.test_env.reset()
 
 			for t in range(10000):
        
-				# 保存渲染畫面
+				# 渲染畫面並保存
 				frame = self.test_env.render()
 				frames.append(frame)
     

@@ -1,4 +1,4 @@
-from td3_agent_CarRacing_without_twin_q_networks import CarRacingTD3Agent
+from td3_agent_CarRacing_single_q import CarRacingTD3Agent
 
 if __name__ == '__main__':
 	# my hyperparameters, you can change it as you like
