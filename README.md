@@ -1,9 +1,8 @@
 # NYCU 114-1 強化學習專論
 ---
-
-## 📌 **RL-lab - 強化學習實作專案**
 > 本專案為 **「強化學習專論」(Selected Topics in Reinforcement Learning)** 課程的實作與專案成果，涵蓋從基礎 RL 概念到 DQN、PPO、TD3 及最終專案實作，完整展示強化學習的應用與能力。
 
+![期末賽車專案縮圖](docs/racecar_gym.png)
 ---
 
 ## 🏆 **課程資訊**
@@ -71,6 +70,4 @@
 ---
 施工中:
 
-
-![] 放大圖
 📌 **更多訓練結果請見 [`results/`](./results/)**
