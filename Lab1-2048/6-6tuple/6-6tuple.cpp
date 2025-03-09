@@ -731,17 +731,37 @@ public:
 	 *  { (s0,s0',a0,r0), (s1,s1',a1,r1), (s2,s2,x,-1) }
 	 *  where (x,x,x,x) means (before state, after state, action, reward)
 	 */
+
 	void update_episode(std::vector<state>& path, float alpha = 0.1) const {
 		// TODO
-		float target = 0;
-		path.pop_back(); // Remove the last state (terminal state)
+		float target = 0.0f;
+		path.pop_back(); 		// 先把最後的終止狀態 pop 掉（因為它已經沒有下一個可更新）
+
+		// 然後從後往前
 		while (!path.empty()) {
 			state& s = path.back();
-			float error = target - estimate(s.after_state());
-			target = s.reward() + update(s.after_state(), alpha * error);
+			float old_v = estimate(s.before_state()); 					// 1. 估計目前(before)狀態的舊價值 old_v
+			float td_error = (s.reward() + target) - old_v; 			// 2. TD error = [R + gamma * target] - old_v  //這裡假設 gamma = 1
+			float new_v = update(s.before_state(), alpha * td_error); 	// 3. 用 td_error 來更新 V(before_state)
+			target = new_v; 											// 4. 將本次更新後的「new_v」當作下一輪的 bootstrap 值
 			path.pop_back();
 		}
 	}
+
+	
+	// void update_episode(std::vector<state>& path, float alpha = 0.1) const {
+	// 	// TODO
+	// 	float target = 0;
+	// 	path.pop_back(); // Remove the last state (terminal state)
+	// 	while (!path.empty()) {
+	// 		state& s = path.back();
+	// 		// 這裡使用的是 after_state
+
+	// 		float error = target - estimate(s.after_state());
+	// 		target = s.reward() + update(s.after_state(), alpha * error);
+	// 		path.pop_back();
+	// 	}
+	// }
 
 	/**
 	 * update the statistic, and display the status once in 1000 episodes by default
